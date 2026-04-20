@@ -1,0 +1,11 @@
+/**:
+  ros__parameters:
+    visual_odometry_topic: "/fmu/in/vehicle_visual_odometry"
+    offboard_control_mode_topic: "/fmu/in/offboard_control_mode"
+    trajectory_setpoint_topic: "/fmu/in/trajectory_setpoint"
+    vehicle_command_topic: "/fmu/in/vehicle_command"
+    heartbeat_rate: 1.0
+    offboard_rate: 50.0
+    timeout_threshold: 3.0
+    use_xrce_dds: true
+    frame_id: "map"

@@ -1,0 +1,61 @@
+# Geographic Fence Configuration
+# 地理围栏与边界限制
+
+fence:
+  enabled: true
+  
+  # 形状类型: CYLINDER（圆柱）, BOX（长方体）, POLYGON（多边形）
+  type: "CYLINDER"
+  
+  # 圆柱体围栏（以起飞点为原点）
+  cylinder:
+    center_x: 0.0                   # 相对于home点的偏移 (m)
+    center_y: 0.0
+    max_radius: 50.0                # 最大水平半径 (m)
+    min_altitude: -5.0              # 最小高度（NED坐标，负值表示上）(m)
+    max_altitude: -30.0             # 最大高度（NED坐标，-30表示地面以上30m）(m)
+    
+  # 长方体围栏（可选）
+  box:
+    min_x: -50.0
+    max_x: 50.0
+    min_y: -50.0
+    max_y: 50.0
+    min_z: -30.0                    # 最大高度30m
+    max_z: -2.0                     # 最小高度2m（避免地面碰撞）
+
+# 边界行为
+boundary_action:
+  # 接近边界时的预警距离
+  warning_distance: 5.0             # 距离边界5m时预警
+  
+  # 超出边界时的动作
+  violation_action: "HOLD_POSITION" # 选项: HOLD_POSITION, RTL, LAND, NONE
+  # HOLD_POSITION: 停在边界处
+  # RTL: 返航（需GPS，不适用纯视觉）
+  # LAND: 就地降落
+  # NONE: 仅报警
+  
+  # 强制限制（裁剪设定点）
+  hard_limit: true                  # true时强制裁剪到边界内
+
+# 禁飞区（可选，局部坐标）
+no_fly_zones:
+  - name: "obstacle_1"
+    type: "CYLINDER"
+    center_x: 10.0
+    center_y: 10.0
+    radius: 2.0
+    min_z: -0.5
+    max_z: -5.0
+    
+  - name: "ceiling_limit"
+    type: "PLANE"
+    z: -20.0                        # 绝对高度限制20m
+
+# 起飞点设置
+home_position:
+  set_on_arm: true                  # 解锁时设置home点
+  min_satellites: 0                 # 不需要GPS（纯视觉模式）
+  use_manual_altitude: true         # 使用手动输入高度
+  manual_altitude: 0.0              # 起飞点高度（m，相对气压高度）

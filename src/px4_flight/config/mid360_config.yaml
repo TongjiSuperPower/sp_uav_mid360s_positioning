@@ -1,0 +1,48 @@
+# Mid360 LiDAR Configuration
+# 雷达硬件参数配置
+
+lidar:
+  # 网络配置
+  ip_address: "192.168.1.100"      # Mid360默认IP
+  pc_ip_address: "192.168.1.50"   # 机载电脑IP
+  subnet_mask: "255.255.255.0"
+  port: 56000
+  
+  # 数据输出配置
+  publish_freq: 10.0              # 点云发布频率 (Hz)
+  imu_freq: 200.0                 # IMU发布频率 (Hz)
+  
+  # 坐标系
+  frame_id: "livox_frame"         # 雷达坐标系名称
+  
+  # 数据过滤
+  point_cloud_range:
+    min: 0.1                      # 最小距离 (m)，过滤机身反射
+    max: 100.0                    # 最大距离 (m)
+  
+  # 特征提取参数（用于Point-LIO预处理）
+  feature_extraction:
+    scan_line: 4                  # Mid360为4线LiDAR
+    blind: 0.5                    # 盲区 (m)
+    point_filter_num: 3           # 每线采样点数（越大越稀疏）
+
+# 外参标定 - 雷达相对于飞控IMU的位置（NED坐标系）
+# 测量方法：从飞控IMU中心到雷达几何中心的偏移
+extrinsic_parameters:
+  # 平移 (m) - 机体坐标系：x前，y左，z上
+  translation:
+    x: 0.0                        # 雷达在IMU前方/后方（+前/-后）
+    y: 0.0                        # 雷达在IMU左方/右方（+左/-右）
+    z: -0.05                      # 雷达在IMU上方/下方（+上/-下），通常雷达在IMU下方
+  
+  # 旋转 (rad) - 欧拉角 ZYX顺序：yaw-pitch-roll
+  rotation:
+    yaw: 0.0                      # 绕Z轴旋转，通常0或180°（雷达朝向）
+    pitch: 0.0                    # 绕Y轴旋转
+    roll: 0.0                     # 绕X轴旋转
+
+# 测试模式
+test_mode:
+  publish_dummy_data: false       # 发布虚拟数据用于测试
+  record_bag: true                # 自动录制rosbag
+  bag_duration: 300               # 录制时长 (s)

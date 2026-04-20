@@ -1,0 +1,62 @@
+# Point-LIO Configuration for Mid360
+# 基于ROS2社区版参数调优
+
+common:
+  imu_topic: "/livox/imu"
+  lid_topic: "/livox/lidar"
+  time_sync_en: false             # 不需要时间同步，Mid360硬件同步
+  
+preprocess:
+  lidar_type: 4                   # 4 = Livox Mid360
+  scan_line: 4
+  blind: 0.5                      # 盲区，过滤机身附近点
+  point_filter_num: 3             # 采样率，越大计算量越小
+  timestamp_unit: 3               # 时间戳单位（3=秒）
+
+mapping:
+  acc_cov: 0.1                    # 加速度计协方差
+  gyr_cov: 0.1                    # 陀螺仪协方差
+  b_acc_cov: 0.0001               # 加速度偏置协方差
+  b_gyr_cov: 0.0001               # 陀螺仪偏置协方差
+  fov_degree: 360                 # Mid360为360°视场
+  det_range: 100.0                # 最大检测距离
+  extrinsic_est_en: false         # 不在线估计外参（已标定）
+  imu_en: true                    # 启用IMU
+  
+  # 迭代优化参数
+  filter_size_surf: 0.5           # 表面特征滤波尺寸
+  filter_size_map: 0.5            # 地图滤波尺寸
+  point_filter_num: 3             # 重复定义，确保一致
+  cube_side_length: 1000.0        # 局部地图立方体边长
+  runtime_pos_log_enable: false   # 禁用位置日志以提高性能
+
+noise:
+  # 根据实际IMU测试调整（步骤4测量值）
+  acc_n: 0.02                     # 加速度噪声 (m/s^2/sqrt(Hz))
+  gyr_n: 0.005                    # 陀螺仪噪声 (rad/s/sqrt(Hz))
+  acc_w: 0.0002                   # 加速度随机游走
+  gyr_w: 0.0001                   # 陀螺仪随机游走
+
+publish:
+  path_publish_en: true
+  scan_publish_en: true
+  dense_publish_en: false         # 不发布稠密点云，节省带宽
+  scan_bodyframe_pub_en: true
+
+# 动态参数（根据场景调整）
+dynamic:
+  # 快速运动模式（速度>3m/s时启用）
+  fast_motion:
+    point_filter_num: 1           # 减少采样，提高帧率
+    filter_size_map: 0.3          # 更精细地图
+    
+  # 低速精确模式
+  slow_motion:
+    point_filter_num: 5           # 增加采样，提高精度
+    filter_size_map: 0.8          # 更平滑地图
+
+# 故障检测
+failure_detection:
+  max_consecutive_lost_frames: 5  # 最大连续丢失帧数
+  position_jump_threshold: 0.5    # 位置跳变阈值 (m)
+  z_divergence_threshold: 1.0     # 高度发散阈值 (m)

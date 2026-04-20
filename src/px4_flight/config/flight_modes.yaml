@@ -1,0 +1,105 @@
+# Flight Mode Management Configuration
+# 飞行模式管理与切换逻辑
+
+modes:
+  # 支持的飞行模式
+  available_modes:
+    - MANUAL
+    - STABILIZED
+    - POSITION         # 使用外部定位的手动控制
+    - OFFBOARD         # 外部控制
+    
+  # 默认启动模式
+  default_mode: "POSITION"
+
+# Position模式配置（手动+外部定位）
+position_mode:
+  # 遥控器通道映射
+  rc_channels:
+    roll: 1           # 副翼通道
+    pitch: 2          # 升降通道
+    throttle: 3       # 油门通道
+    yaw: 4            # 方向通道
+    mode_switch: 5    # 模式切换通道（3档开关）
+    
+  # 模式开关位置
+  switch_positions:
+    position: 1500    # 中档：Position模式
+    offboard: 2000    # 高档：Offboard模式
+    manual: 1000      # 低档：手动/返航（安全档）
+
+  # 位置保持参数
+  hold:
+    deadband: 0.05    # 摇杆死区（0-1）
+    timeout: 0.5        # 松手后进入保持的时间 (s)
+    max_velocity: 5.0   # 最大手动速度 (m/s)
+
+# Offboard模式配置
+offboard_mode:
+  # 激活条件
+  activation:
+    require_armed: true           # 需要已解锁
+    require_position_valid: true  # 需要定位有效
+    require_rc_connected: true    # 需要遥控器连接（安全）
+    pre_flight_check_duration: 5.0 # 预检时间 (s)
+  
+  # 心跳配置
+  heartbeat:
+    setpoint_rate: 50.0           # 设定点发送频率 (Hz)
+    timeout: 0.5                    # 设定点超时 (s)
+    keep_alive_before_activation: true # 激活前持续发送当前位置
+    
+  # 设定点类型优先级（按可用性选择）
+  setpoint_types:
+    - POSITION        # 首选：位置设定点
+    - VELOCITY        # 次选：速度设定点
+    - ACCELERATION    # 备选：加速度设定点
+    
+  # 平滑过渡
+  smoothing:
+    enable: true
+    transition_duration: 1.0        # 模式切换时从当前位置到新设定点的过渡时间 (s)
+    max_jerk: 2.0                   # 最大加加速度 (m/s^3)
+
+# 模式切换保护
+transitions:
+  # 允许的直接切换
+  allowed_transitions:
+    - from: "POSITION"
+      to: "OFFBOARD"
+      conditions: ["hovering", "odom_valid", "rc_connected"]
+    - from: "OFFBOARD"
+      to: "POSITION"
+      conditions: ["always"]        # 随时可切回手动
+      
+  # 禁止的切换
+  forbidden_transitions:
+    - from: "OFFBOARD"
+      to: "MANUAL"
+      reason: "需先切POSITION稳定"
+      
+  # 切换失败处理
+  on_failure:
+    retry_count: 3
+    retry_delay: 0.5
+    fallback_action: "HOVER"        # 失败时悬停
+
+# 安全监控
+safety:
+  # 定位失效
+  position_loss:
+    threshold: 0.5                  # 判定丢失时间 (s)
+    action: "SWITCH_TO_POSITION"    # 自动切回Position模式
+    emergency_land: false           # 是否紧急降落
+    
+  # 通信失效
+  communication_loss:
+    mavlink_timeout: 3.0
+    offboard_timeout: 0.5
+    action: "POSITION_MODE"
+    
+  # 遥控器失效
+  rc_loss:
+    detect_channel: 5               # 用于检测的通道
+    timeout: 0.5
+    action: "LAND"                  # 遥控器丢失时降落
