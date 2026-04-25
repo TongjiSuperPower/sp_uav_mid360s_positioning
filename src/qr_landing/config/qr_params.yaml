@@ -1,0 +1,31 @@
+qr_detector:
+  ros__parameters:
+    camera_topic: "/camera/camera/color/image_raw"
+    depth_topic: "/camera/camera/aligned_depth_to_color/image_raw"
+    camera_info_topic: "/camera/camera/color/camera_info"
+    publish_debug_image: true
+
+    marker_size: 0.10           # 单码边长 10cm
+    aruco_dict: "DICT_4X4_50"
+
+    matrix_mode: true
+    matrix_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    matrix_cell_pitch: 0.12    # 中心距 12cm = 边长 10cm + 间隙 2cm
+    depth_pnp_max_diff_ratio: 0.30
+
+landing_controller:
+  ros__parameters:
+    follow_altitude: 2.0
+    follow_max_speed: 1.0
+    approach_altitude: 2.0
+    descend_start_altitude: 1.0
+    final_altitude: 0.3
+    landing_speed: 0.3
+    horizontal_speed: 1.0
+    max_horizontal_error: 0.08
+    yaw_speed: 0.5
+    qr_timeout: 2.0
+    kp_xy: 0.6
+    kp_yaw: 0.8
+    kp_z: 0.5
+    default_mode: "FOLLOW"

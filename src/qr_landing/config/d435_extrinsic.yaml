@@ -1,0 +1,8 @@
+# D435下视安装外参：base_link -> camera_link
+# 根据实际机械安装标定后修改 RPY
+# 默认假设：相机安装在机体中心正下方，镜头垂直朝下，图像上方对应机体前方
+static_transform:
+  translation: [0.0, 0.0, -0.12]  # x,y,z [m]  相机在机体下方12cm
+  rotation: [3.14159, 0.0, -1.5708] # roll,pitch,yaw [rad]
+  # 解释：绕X轴180°(翻转)，再绕Z轴-90°，使得相机Z轴指向地面，图像上方对准机体前方
+  # 若实际安装不同，请使用 ros2 run tf2_tools view_frames 可视化验证
