@@ -6,7 +6,7 @@ namespace px4_flight
 ExternalPoseBridge::ExternalPoseBridge(const rclcpp::NodeOptions & options)
 : Node("external_pose_bridge", options)
 {
-  this->declare_parameter("point_lio_topic", "/aft_mapped_to_init");
+  this->declare_parameter("point_lio_topic", "/Odometry");
   this->declare_parameter("px4_odom_topic", "/fmu/out/vehicle_odometry");
   this->declare_parameter("timeout_threshold", 0.5);
   this->declare_parameter("jump_threshold", 0.5);

@@ -91,6 +91,7 @@ private:
   std::atomic<bool> armed_{false};
   std::atomic<bool> offboard_mode_{false};
   std::atomic<bool> position_valid_{false};
+  rclcpp::Time last_yaw_valid_time_;
   
   mutable std::mutex status_mutex_;
   px4_msgs::msg::VehicleStatus latest_status_;

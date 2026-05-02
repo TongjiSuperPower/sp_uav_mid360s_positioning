@@ -1,0 +1,18 @@
+<!-- Agent端话题过滤配置 -->
+<!-- 保留必要话题，减少飞控CPU负载 -->
+
+<dds>
+    <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+        <!-- 限制发现流量 -->
+        <participant profile_name="px4_limited">
+            <rtps>
+                <builtin>
+                    <discovery_config>
+                        <ignoreParticipantFlags>none</ignoreParticipantFlags>
+                        <EDP>SIMPLE</EDP>
+                    </discovery_config>
+                </builtin>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>
