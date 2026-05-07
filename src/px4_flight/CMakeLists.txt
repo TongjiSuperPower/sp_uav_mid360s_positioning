@@ -55,6 +55,21 @@ ament_target_dependencies(px4_flight_lib
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(px4_flight_lib "${cpp_typesupport_target}")
 
+# position飞行模式监测节点
+add_executable(position_monitor src/position_monitor.cpp)
+ament_target_dependencies(position_monitor
+  rclcpp
+  nav_msgs
+  sensor_msgs
+  px4_msgs
+  std_msgs
+  geometry_msgs
+  Eigen3
+)
+target_link_libraries(position_monitor "${cpp_typesupport_target}")
+
+install(TARGETS position_monitor DESTINATION lib/${PROJECT_NAME})
+
 # 主节点
 add_executable(main_flight_node src/main_flight_node.cpp)
 target_link_libraries(main_flight_node px4_flight_lib)

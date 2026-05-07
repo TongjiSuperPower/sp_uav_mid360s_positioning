@@ -1,0 +1,9 @@
+# ~/px4_mid360_ws/src/px4_flight/config/position_monitor.yaml
+/position_monitor:
+  ros__parameters:
+    visual_ekf_xy_threshold: 0.3      # 视觉-EKF水平偏差阈值(m)
+    visual_ekf_z_threshold: 0.2       # 视觉-EKF高度偏差阈值(m)
+    hover_position_variance: 0.01      # 悬停位置方差阈值(m^2)
+    hover_velocity_threshold: 0.3      # 悬停速度阈值(m/s)
+    vibration_threshold: 0.5           # 振动方差阈值(g^2)
+    odom_timeout: 0.5                  # 数据超时(s)

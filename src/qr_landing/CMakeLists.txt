@@ -28,7 +28,7 @@ include_directories(
 
 add_executable(qr_detector_node src/qr_detector_node.cpp)
 ament_target_dependencies(qr_detector_node
-  rclcpp sensor_msgs geometry_msgs cv_bridge image_transport tf2 tf2_ros tf2_geometry_msgs
+  rclcpp sensor_msgs geometry_msgs std_msgs cv_bridge image_transport tf2 tf2_ros tf2_geometry_msgs
 )
 target_link_libraries(qr_detector_node ${OpenCV_LIBS})
 
@@ -42,7 +42,6 @@ ament_target_dependencies(landing_controller_node
   rclcpp geometry_msgs std_msgs tf2
 )
 
-# --- 新增：测试可视化节点 ---
 add_executable(qr_test_visualizer_node src/qr_test_visualizer_node.cpp)
 ament_target_dependencies(qr_test_visualizer_node
   rclcpp sensor_msgs geometry_msgs cv_bridge tf2
@@ -53,7 +52,7 @@ install(TARGETS
   qr_detector_node
   coordinate_transformer_node
   landing_controller_node
-  qr_test_visualizer_node  # <-- 加入安装列表
+  qr_test_visualizer_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
