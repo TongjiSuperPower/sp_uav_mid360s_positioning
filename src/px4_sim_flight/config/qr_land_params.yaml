@@ -1,0 +1,12 @@
+offboard_landing_node:
+  ros__parameters:
+    takeoff_height: 2.0
+    hover_time: 3.0
+    approach_velocity: 0.5
+    descent_velocity: -0.3
+    final_descent_height: 0.5
+    stop_adjust_height: 0.3
+    final_descent_velocity: -0.2
+    qr_topic: "/qr_land/pose"
+    qr_position_x: 0.0
+    qr_position_y: 2.0

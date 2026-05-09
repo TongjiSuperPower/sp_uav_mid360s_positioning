@@ -80,6 +80,19 @@ px4_msgs::msg::VehicleStatus PX4Interface::get_vehicle_status() const
 
 bool PX4Interface::send_visual_odometry(const nav_msgs::msg::Odometry::SharedPtr & odom_msg)
 {
+  // ========== 【新增】发布频率限制（10Hz）==========
+  static rclcpp::Time last_pub_time;
+  auto now = this->get_clock()->now();
+  
+  if (last_pub_time.nanoseconds() > 0) {
+    double dt = (now - last_pub_time).seconds();
+    if (dt < 0.1) {
+      return true;  // 跳过，避免EKF2过载
+    }
+  }
+  last_pub_time = now;
+  
+  // ========== 原有转换代码 ==========
   auto px4_odom = convert_enu_to_ned(odom_msg);
   visual_odometry_pub_->publish(px4_odom);
   return true;
@@ -261,91 +274,197 @@ px4_msgs::msg::VehicleOdometry PX4Interface::convert_enu_to_ned(
 {
   px4_msgs::msg::VehicleOdometry px4_odom;
   
+  // ========== 时间戳（统一使用ROS时间，微秒）==========
   auto now = this->get_clock()->now();
-  px4_odom.timestamp = now.nanoseconds() / 1000;
-  px4_odom.timestamp_sample = odom_msg->header.stamp.sec * 1000000ULL + 
-                               odom_msg->header.stamp.nanosec / 1000;
-
-  // ========== 位置转换（与MAVROS2一致）==========
-  px4_odom.position[0] = odom_msg->pose.pose.position.y;
-  px4_odom.position[1] = odom_msg->pose.pose.position.x;
-  px4_odom.position[2] = -odom_msg->pose.pose.position.z;
-
-  // ========== 【修正】姿态转换（借鉴MAVROS2）==========
   
-  // 获取ENU四元数
+  uint64_t now_us = now.nanoseconds() / 1000;
+  px4_odom.timestamp = now_us;
+  
+  rclcpp::Time msg_time(odom_msg->header.stamp);
+  uint64_t sample_us = msg_time.nanoseconds() / 1000;
+  
+  if (sample_us > now_us) {
+    sample_us = now_us;
+  }
+  
+  px4_odom.timestamp_sample = sample_us;
+
+  // ========== 位置转换 ENU→NED ==========
+  // ENU: X=东, Y=北, Z=天
+  // NED: X=北, Y=东, Z=地
+  px4_odom.position[0] = odom_msg->pose.pose.position.y;   // NED_X = ENU_Y (北) ✓
+  px4_odom.position[1] = odom_msg->pose.pose.position.x;   // NED_Y = ENU_X (东) ✓
+  px4_odom.position[2] = -odom_msg->pose.pose.position.z;  // NED_Z = -ENU_Z (地) ✓
+
+  // ========== 【关键修正】姿态转换 ENU→NED ==========
+  
   tf2::Quaternion q_enu(
     odom_msg->pose.pose.orientation.x,
     odom_msg->pose.pose.orientation.y,
     odom_msg->pose.pose.orientation.z,
     odom_msg->pose.pose.orientation.w);
 
-  // 【关键】构造NED_ENU_Q（与MAVROS2一致）
-  // NED_ENU_Q = quaternion_from_rpy(M_PI, 0.0, M_PI_2)
-  // 即：绕X轴180°，然后绕Z轴90°
-  tf2::Quaternion NED_ENU_Q;
-  NED_ENU_Q.setRPY(M_PI, 0.0, M_PI_2);  // roll=180°, pitch=0, yaw=90°
-  NED_ENU_Q.normalize();
+  // 检查有效性
+  double norm = std::sqrt(q_enu.x()*q_enu.x() + q_enu.y()*q_enu.y() + 
+                          q_enu.z()*q_enu.z() + q_enu.w()*q_enu.w());
+  if (std::abs(norm - 1.0) > 0.01 || std::isnan(norm)) {
+    q_enu = tf2::Quaternion(0, 0, 0, 1);
+  } else {
+    q_enu.normalize();
+  }
 
-  // 【关键】转换：q_ned = NED_ENU_Q * q_enu（左乘，与MAVROS2一致）
-  tf2::Quaternion q_ned = NED_ENU_Q * q_enu;
-  q_ned.normalize();
-
-  // 验证：检查转换后的航向
-  double roll_ned, pitch_ned, yaw_ned;
-  tf2::Matrix3x3(q_ned).getRPY(roll_ned, pitch_ned, yaw_ned);
+  // ENU到NED欧拉角
+  double roll_enu, pitch_enu, yaw_enu;
+  tf2::Matrix3x3(q_enu).getRPY(roll_enu, pitch_enu, yaw_enu);
   
-  // 航向稳定性检查
-  static double last_yaw = 0.0;
+  // 【关键】航向映射：ENU逆时针正 → NED顺时针正，需取反
+  double roll_ned = roll_enu;       // 滚转同向 ✓
+  double pitch_ned = pitch_enu;     // 俯仰同向 ✓
+  double yaw_ned = -yaw_enu;        // 航向反向（手性修正）✓
+
+  // ========== 【关键】航向低通滤波（抗晃动）==========
+  
+  static double filtered_yaw = 0.0;
   static bool yaw_init = false;
   
   if (!yaw_init) {
-    last_yaw = yaw_ned;
+    filtered_yaw = yaw_ned;
     yaw_init = true;
+    RCLCPP_INFO(this->get_logger(), 
+      "坐标对齐: ENU→NED, init yaw=%.2f°", yaw_ned * 180.0 / M_PI);
   } else {
-    double yaw_diff = std::abs(yaw_ned - last_yaw);
-    if (yaw_diff > M_PI) yaw_diff = 2 * M_PI - yaw_diff;
-    if (yaw_diff > M_PI / 6) {
-      yaw_ned = last_yaw;
-      tf2::Quaternion q_stable;
-      q_stable.setRPY(roll_ned, pitch_ned, yaw_ned);
-      q_ned = q_stable;
-    } else {
-      last_yaw = yaw_ned;
-    }
+    double diff = yaw_ned - filtered_yaw;
+    while (diff > M_PI) diff -= 2.0 * M_PI;
+    while (diff < -M_PI) diff += 2.0 * M_PI;
+    
+    // 自适应滤波：静止时快速跟随，运动时强滤波
+    static double last_pos_x = 0.0, last_pos_y = 0.0;
+    double pos_change = std::sqrt(
+      std::pow(px4_odom.position[0] - last_pos_x, 2) +
+      std::pow(px4_odom.position[1] - last_pos_y, 2));
+    last_pos_x = px4_odom.position[0];
+    last_pos_y = px4_odom.position[1];
+    
+    double alpha = (pos_change > 0.01) ? 0.05 : 0.3;
+    filtered_yaw += alpha * diff;
+    
+    while (filtered_yaw > M_PI) filtered_yaw -= 2.0 * M_PI;
+    while (filtered_yaw < -M_PI) filtered_yaw += 2.0 * M_PI;
   }
+
+  // 重建四元数
+  tf2::Quaternion q_ned;
+  q_ned.setRPY(roll_ned, pitch_ned, filtered_yaw);
+  q_ned.normalize();
 
   px4_odom.q[0] = q_ned.w();
   px4_odom.q[1] = q_ned.x();
   px4_odom.q[2] = q_ned.y();
   px4_odom.q[3] = q_ned.z();
 
-  // ========== 速度转换 ==========
-  px4_odom.velocity[0] = odom_msg->twist.twist.linear.y;
-  px4_odom.velocity[1] = odom_msg->twist.twist.linear.x;
-  px4_odom.velocity[2] = -odom_msg->twist.twist.linear.z;
-
-  // ========== 角速度 ==========
-  px4_odom.angular_velocity[0] = odom_msg->twist.twist.angular.x;
-  px4_odom.angular_velocity[1] = odom_msg->twist.twist.angular.y;
-  px4_odom.angular_velocity[2] = odom_msg->twist.twist.angular.z;
-
-  // ========== 协方差 ==========
-  px4_odom.position_variance[0] = odom_msg->pose.covariance[7];
-  px4_odom.position_variance[1] = odom_msg->pose.covariance[0];
-  px4_odom.position_variance[2] = odom_msg->pose.covariance[14];
+  // ========== 【方案2新增】位置跳变检测与保护 ==========
   
-  px4_odom.orientation_variance[0] = odom_msg->pose.covariance[21];
-  px4_odom.orientation_variance[1] = odom_msg->pose.covariance[28];
-  px4_odom.orientation_variance[2] = odom_msg->pose.covariance[35];
+  static double last_valid_x = 0.0, last_valid_y = 0.0, last_valid_z = 0.0;
+  static bool pos_init = false;
+  static rclcpp::Time last_pos_time;
+  
+  double curr_x = px4_odom.position[0];
+  double curr_y = px4_odom.position[1];
+  double curr_z = px4_odom.position[2];
+  
+  if (!pos_init) {
+    // 首次初始化
+    last_valid_x = curr_x;
+    last_valid_y = curr_y;
+    last_valid_z = curr_z;
+    last_pos_time = now;
+    pos_init = true;
+    RCLCPP_INFO(this->get_logger(), 
+      "位置初始化: %.3f, %.3f, %.3f", curr_x, curr_y, curr_z);
+  } else {
+    double dt = (now - last_pos_time).seconds();
+    last_pos_time = now;
+    
+    // 计算帧间位移
+    double dx = curr_x - last_valid_x;
+    double dy = curr_y - last_valid_y;
+    double dz = curr_z - last_valid_z;
+    double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+    
+    // 计算速度
+    double velocity = dist / std::max(dt, 0.001);
+    
+    // 【关键】最大可信速度（根据实际调整，室内2m/s，室外5m/s）
+    double max_velocity = 3.0;  // m/s
+    
+    if (velocity > max_velocity) {
+      // 跳变 detected，使用预测位置而非Fast-LIO2输出
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+        "位置跳变: %.2fm/%.3fs=%.1fm/s > %.1fm/s, 使用预测",
+        dist, dt, velocity, max_velocity);
+      
+      // 使用上一帧有效位置（保持静止预测）
+      px4_odom.position[0] = last_valid_x;
+      px4_odom.position[1] = last_valid_y;
+      px4_odom.position[2] = last_valid_z;
+      
+      // 标记质量差，EKF2会降低权重但不会完全拒绝
+      px4_odom.quality = 0;
+      
+      // 协方差增大，表示不确定性
+      px4_odom.position_variance[0] = 1.0;
+      px4_odom.position_variance[1] = 1.0;
+      px4_odom.position_variance[2] = 1.0;
+    } else {
+      // 正常，更新上一帧有效位置
+      last_valid_x = curr_x;
+      last_valid_y = curr_y;
+      last_valid_z = curr_z;
+      px4_odom.quality = 1;
+      
+      // 正常协方差
+      px4_odom.position_variance[0] = 0.01;
+      px4_odom.position_variance[1] = 0.01;
+      px4_odom.position_variance[2] = 0.04;
+    }
+  }
 
+  // ========== 速度转换 ENU→NED ==========
+  // 【注意】odom_msg->twist.twist.linear是世界坐标系下的速度
+  px4_odom.velocity[0] = odom_msg->twist.twist.linear.y;   // NED_vx = ENU_vy (北向速度) ✓
+  px4_odom.velocity[1] = odom_msg->twist.twist.linear.x;   // NED_vy = ENU_vx (东向速度) ✓
+  px4_odom.velocity[2] = -odom_msg->twist.twist.linear.z;  // NED_vz = -ENU_vz (地向速度) ✓
+
+  // ========== 角速度转换 ==========
+  // 机体坐标系下的角速度
+  px4_odom.angular_velocity[0] = odom_msg->twist.twist.angular.x;   // Roll变化率 ✓
+  px4_odom.angular_velocity[1] = odom_msg->twist.twist.angular.y;   // Pitch变化率 ✓
+  px4_odom.angular_velocity[2] = -odom_msg->twist.twist.angular.z;  // Yaw变化率（取反）✓
+
+  // ========== 姿态协方差 ==========
+  px4_odom.orientation_variance[0] = 0.01;   // roll
+  px4_odom.orientation_variance[1] = 0.01;   // pitch
+  px4_odom.orientation_variance[2] = 0.01;   // yaw
+
+  // ========== 参考帧 ==========
   px4_odom.pose_frame = px4_msgs::msg::VehicleOdometry::POSE_FRAME_NED;
-  px4_odom.velocity_frame = px4_msgs::msg::VehicleOdometry::VELOCITY_FRAME_BODY_FRD;
+  
+  // 【修正】速度是世界坐标系，应设为NED
+  px4_odom.velocity_frame = px4_msgs::msg::VehicleOdometry::VELOCITY_FRAME_NED;
 
-  px4_odom.quality = 1;
+  // 调试日志（每100帧）
+  static int cnt = 0;
+  if (++cnt % 100 == 0) {
+    RCLCPP_INFO(this->get_logger(), 
+      "对齐: raw_yaw=%.1f°, filt_yaw=%.1f°, pos=%.2f,%.2f,%.2f, qual=%d",
+      yaw_enu * 180.0 / M_PI, filtered_yaw * 180.0 / M_PI,
+      px4_odom.position[0], px4_odom.position[1], px4_odom.position[2],
+      px4_odom.quality);
+  }
 
   return px4_odom;
 }
+
 px4_msgs::msg::TrajectorySetpoint PX4Interface::convert_setpoint_to_ned(
   const geometry_msgs::msg::PoseStamped::SharedPtr & pose_msg)
 {

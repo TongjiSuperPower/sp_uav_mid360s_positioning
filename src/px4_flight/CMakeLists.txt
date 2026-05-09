@@ -51,24 +51,8 @@ ament_target_dependencies(px4_flight_lib
   Eigen3
 )
 
-# 链接消息类型支持
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(px4_flight_lib "${cpp_typesupport_target}")
-
-# position飞行模式监测节点
-add_executable(position_monitor src/position_monitor.cpp)
-ament_target_dependencies(position_monitor
-  rclcpp
-  nav_msgs
-  sensor_msgs
-  px4_msgs
-  std_msgs
-  geometry_msgs
-  Eigen3
-)
-target_link_libraries(position_monitor "${cpp_typesupport_target}")
-
-install(TARGETS position_monitor DESTINATION lib/${PROJECT_NAME})
 
 # 主节点
 add_executable(main_flight_node src/main_flight_node.cpp)
@@ -77,10 +61,7 @@ ament_target_dependencies(main_flight_node rclcpp)
 
 # Livox转换节点
 add_executable(livox_converter src/livox_converter.cpp)
-ament_target_dependencies(livox_converter
-  rclcpp
-  sensor_msgs
-)
+ament_target_dependencies(livox_converter rclcpp sensor_msgs)
 
 # 安装
 install(TARGETS
@@ -90,21 +71,8 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY include/
-  DESTINATION include
-)
+install(DIRECTORY include/ DESTINATION include)
 
-install(DIRECTORY
-  config
-  launch
-  scripts
-  DESTINATION share/${PROJECT_NAME}/
-)
+install(DIRECTORY config launch scripts DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()
-
-add_executable(simple_px4_node src/simple_main.cpp)
-target_link_libraries(simple_px4_node px4_flight_lib)
-ament_target_dependencies(simple_px4_node rclcpp)
-
-install(TARGETS simple_px4_node DESTINATION lib/${PROJECT_NAME})
