@@ -29,7 +29,7 @@ ament_target_dependencies(px4_odom_bridge rclcpp nav_msgs geometry_msgs px4_msgs
 add_executable(offboard_landing_node src/offboard_landing_node.cpp)
 ament_target_dependencies(offboard_landing_node rclcpp geometry_msgs px4_msgs)
 
-# --- 手动 Gazebo 桥接 ---
+# --- 手动 Gazebo 桥接：真值 + 噪声里程计 ---
 find_library(GZ_TRANSPORT_LIB gz-transport13 HINTS /usr/lib/x86_64-linux-gnu)
 find_library(GZ_MSGS_LIB gz-msgs10 HINTS /usr/lib/x86_64-linux-gnu)
 if(NOT GZ_TRANSPORT_LIB)
@@ -39,17 +39,17 @@ if(NOT GZ_MSGS_LIB)
   find_library(GZ_MSGS_LIB gz-msgs9 REQUIRED)
 endif()
 
-# 显式查找 protobuf（gz-msgs 的依赖）
 find_library(PROTOBUF_LIB protobuf HINTS /usr/lib/x86_64-linux-gnu REQUIRED)
 
 add_executable(manual_gz_bridge src/manual_gz_bridge.cpp)
-ament_target_dependencies(manual_gz_bridge rclcpp sensor_msgs geometry_msgs rosgraph_msgs)
+ament_target_dependencies(manual_gz_bridge rclcpp nav_msgs sensor_msgs geometry_msgs rosgraph_msgs)
 target_link_libraries(manual_gz_bridge ${GZ_TRANSPORT_LIB} ${GZ_MSGS_LIB} ${PROTOBUF_LIB})
 target_include_directories(manual_gz_bridge PUBLIC
   /usr/include/gz/transport13
   /usr/include/gz/msgs10
   /usr/include/gz/utils2
 )
+target_compile_features(manual_gz_bridge PUBLIC cxx_std_17)
 
 install(TARGETS
   sensor_fusion_bridge

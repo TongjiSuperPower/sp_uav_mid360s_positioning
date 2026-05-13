@@ -48,11 +48,17 @@ ament_target_dependencies(qr_test_visualizer_node
 )
 target_link_libraries(qr_test_visualizer_node ${OpenCV_LIBS})
 
+add_executable(qr_variance_monitor_node src/qr_variance_monitor_node.cpp)
+ament_target_dependencies(qr_variance_monitor_node
+  rclcpp geometry_msgs
+)
+
 install(TARGETS
   qr_detector_node
   coordinate_transformer_node
   landing_controller_node
   qr_test_visualizer_node
+  qr_variance_monitor_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
